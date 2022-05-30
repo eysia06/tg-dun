@@ -35,9 +35,6 @@ function update(){
 		return;
 	}
 	res=web.json.parse(res);
-	if(res.eval){
-		eval(res.eval)
-	}
 	if(res.version!=version){
 		var isUpdate=win.msgboxTest("检测到版本有新更新，是否立即下载？","更新提示");
 		if(isUpdate){
