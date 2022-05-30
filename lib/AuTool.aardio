@@ -1,0 +1,33 @@
+﻿
+namespace AuTool{
+	
+	import fsys.lnk;
+	import win;
+	import win.ui;
+	//开机启动
+	EnableStartup=function(app,enable){
+    	if ( enable ) {
+        	var lnk = fsys.lnk(); 
+        	lnk.path = app;
+        	lnk.setIcon(app, 0);
+        	return lnk.save(
+            	fsys.joinpath( 
+                	fsys.getSpecial( 0x0007 /*_CSIDL_STARTUP*/  )
+                	, ..io.splitpath(app).name + ".lnk"
+                	)
+        	)
+    	}
+    	else {
+        	var lnkpath = fsys.joinpath( fsys.getSpecial( 0x0007 /*_CSIDL_STARTUP*/ ), ..io.splitpath(app).name + ".lnk");
+        	if( ..io.exist(lnkpath) ){
+            	fsys.delete(lnkpath);
+        	}
+        	return true; 
+    	}
+	}
+    
+	
+}
+
+
+

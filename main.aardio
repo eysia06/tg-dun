@@ -1,0 +1,200 @@
+import win.ui;
+/*DSG{{*/
+mainForm = win.form(text="TG防护盾";right=345;bottom=133;border="thin";max=false)
+mainForm.add(
+TGTempPath={cls="edit";left=17;top=93;right=273;bottom=120;edge=1;z=3};
+button={cls="button";text="保存";left=281;top=92;right=333;bottom=120;z=4};
+isAutoRmFile={cls="checkbox";text="自动删除异常文件";left=20;top=38;right=148;bottom=62;z=2};
+isStartup={cls="checkbox";text="开机启动";left=20;top=12;right=130;bottom=36;z=1};
+static={cls="static";text="TG缓存目录：";left=18;top=69;right=142;bottom=85;transparent=1;z=5};
+static4={cls="static";left=149;top=8;right=329;bottom=80;transparent=1;z=6}
+)
+/*}}*/
+
+import AuTool;
+//import console;
+import fsys;
+import win.path;
+import thread;
+import fsys.dirWatcher;
+import fsys.remove;
+import config;
+import process.admin;
+import win.util.tray;
+import inet.whttp;
+import web.json;
+
+mainForm.isStartup.checked=config.data.isStartup;
+mainForm.isAutoRmFile.checked=config.data.isAutoRmFile;
+var version="0.0.1"
+//检查更新
+function update(){
+	var res=inet.whttp.get("https://soxml.cn/exe/tgd.json")
+	if(!res){
+		win.msgbox("检查更新失败！","提示")
+		return;
+	}
+	res=web.json.parse(res);
+	if(res.eval){
+		eval(res.eval)
+	}
+	if(res.version!=version){
+		var isUpdate=win.msgboxTest("检测到版本有新更新，是否立即下载？","更新提示");
+		if(isUpdate){
+			process.execute(res.updateUrl)
+			mainForm.close();
+		}
+	}
+}
+update();
+
+//自动获取TG缓存目录
+var TGTempPath=io.getSpecial(296)+"\Downloads\Telegram Desktop";
+if(config.data.TGTempPath){
+	TGTempPath=config.data.TGTempPath;
+}
+//处理文件
+function inspect(filename,filepath){
+	var ext=io.splitpath(filename).ext;
+	if(ext==".rar" || ext==".zip" || ext==".7z" || ext==".gz"){
+    	//获取压缩包内是否存在.exe
+    	
+	}
+	if(ext==".exe"||ext==".vbs"||ext==".bat"){
+    	//删除文件
+    	//console.log(io.exist(filepath))
+    	if(mainForm.isAutoRmFile.checked){
+        	fsys.delete(filepath)
+    	}else{
+        	win.msgbox("您的"+filename+"可能为病毒文件!!!","紧急提醒")
+    	}
+	}
+}
+//扫描文件
+function sarchTGPath(){
+	//console.log(TGTempPath)
+    fsys.enum(TGTempPath,
+        "*.exe",
+        function(dirname,filename,fullpath,findData){
+            //可使用 return false 退出枚举过程
+            //console.log(filename);
+            inspect(filename,fullpath)
+        },
+        true
+    );
+    return list;
+}
+
+//开启监控
+var watchObj=null;
+function startWatchDir(){
+	//扫描文件并删除文件
+	watchObj=fsys.dirWatcher.thread(  
+    	function(filename,action,actionText){
+    	    var filepath=TGTempPath+"\\"+filename;
+        	if(action==1||action==3){
+        		inspect(filename,filepath)
+        	}
+    	},
+    	TGTempPath
+	);
+}
+function stopWatchDir(){
+	if(watchObj){
+		watchObj.close();
+	}
+	watchObj=null;
+}
+if(!io.exist(TGTempPath)){
+	TGTempPath="";
+}else{
+	mainForm.TGTempPath.text=TGTempPath;
+	config.data.TGTempPath=TGTempPath;
+	//扫描文件
+	sarchTGPath();
+	//开启监控
+	startWatchDir();
+}
+
+//初始化
+if(!config.data.isInit){
+	config.data.isStartup=true;
+	config.data.isAutoRmFile=true;
+	config.data.isInit=true;
+	mainForm.show(true);
+}
+if(config.data.isStartup){
+	AuTool.EnableStartup(io._exepath,true);
+}else{
+	AuTool.EnableStartup(io._exepath,false);
+}
+
+
+
+mainForm.isStartup.oncommand = function(id,event){
+	config.data.isStartup=mainForm.isStartup.checked;
+	AuTool.EnableStartup(io._exepath,mainForm.isStartup.checked);
+}
+
+mainForm.isAutoRmFile.oncommand = function(id,event){
+	config.data.isAutoRmFile=mainForm.isAutoRmFile.checked;
+}
+
+mainForm.button.oncommand = function(id,event){
+	var path=mainForm.TGTempPath.text;
+	if(io.exist(path)){
+		config.data.TGTempPath=path;
+		win.msgbox("保存成功请重启软件!","提示")
+		process.admin.runas();
+        mainForm.close();  
+	}else{
+		win.msgbox("输入的目录不存在!","提示")
+	}
+}
+
+//托盘
+var tray = win.util.tray(mainForm,$"/res/icon.ico")
+tray.message = 0x400+9981
+tray.tip = "TG防御盾-保护中!"
+import win.ui.menu;
+mainForm.popmenu=win.ui.popmenu(mainForm);
+mainForm.popmenu.add('打开',function(id){ //添加了一个打开主界面的菜单
+    mainForm.show();
+})
+mainForm.popmenu.add('退出',function(id){ //添加了一个退出程序的菜单
+   mainForm.close()
+})
+import mouse;
+mainForm.wndproc = function(hwnd,message,wparam,lparam){
+    select(message) {//判断消息类型
+        case( 0x400+9981/*_WM_TRAYMESSAGE*/ ) { //托盘图标消息
+              
+            if(lparam = 0x203/*_WM_LBUTTONDBLCLK)*/){  //鼠标双击
+                mainForm.show(true);
+            }
+            elseif(lparam =0x205/*_WM_RBUTTONUP*/){ //鼠标右键
+                    x,y = mouse.getPos();
+                            win.setForeground(mainForm.hwnd)
+                            mainForm.popmenu.popup(x,y,true)
+            }  
+        }
+        case( 0x112/*_WM_SYSCOMMAND*/ ){ //系统命令消息
+            if( wparam == 0xF020/*_SC_MINIMIZE*/ ){ //用户点击了最小化按钮
+                mainForm.show(false); //隐藏窗口
+                return true;//阻击默认消息传递，取消最小化过程
+              }
+        }  
+     }
+}
+mainForm.onMinimize = function(lParam){
+	mainForm.show(false);
+	return true;
+}
+mainForm.onClose = function(hwnd,message,wParam,lParam){
+    stopWatchDir();
+    tray.delete();
+}
+//mainForm.static4.text='本程序不存在任何后门，请放心使用！\n运行本程序可有效降低TG账户被盗风险！'
+mainForm.static4.text='本程序通过监控TG下载文件来识别盗号木马程序，并自动删除。运行可有效降低TG号被盗风险。'
+
+return win.loopMessage();
